@@ -1,0 +1,52 @@
+name: Run Script
+
+on:
+    schedule:
+        - cron: '0 12 * * *'
+          timezone: 'America/Los_Angeles' # Runs every day at 12:00 PM Pacific Time
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    run:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 90
+
+        concurrency:
+            group: microsoft-rewards
+            cancel-in-progress: false
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+              with:
+                  ref: v5
+                  persist-credentials: false
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  cache: npm
+
+            - name: Install dependencies and browser
+              run: |
+                  npm ci
+                  npx patchright install --with-deps chromium
+              timeout-minutes: 5
+
+            - name: Build project
+              run: npm run build
+
+            - name: Write config files from secrets
+              env:
+                  ENV_FILE: ${{ secrets.ENV_FILE }}
+                  CONFIG_JSON: ${{ secrets.CONFIG_JSON }}
+              run: |
+                  printf '%s' "$ENV_FILE" > dist/.env
+                  printf '%s' "$CONFIG_JSON" > dist/config.json
+
+            - name: Run project
+              run: npm start
